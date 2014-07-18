@@ -1,0 +1,247 @@
+html {
+	font-size: 12px;
+	line-height: 16px;
+	font-family: verdana,helvetica;              	
+}
+
+html, body, #map {
+	font-family: 'Open Sans', sans-serif !important;
+	height:100%;
+	width:100%;
+	margin:0;
+	padding:0;
+}
+html, body, #mapDiv{
+  padding: 0;
+  margin: 0;
+  height: 100%;
+}
+    
+#navbar{
+	margin-bottom: 10px;
+	margin-left: 47px;
+	font-weight: bold;
+	text-shadow: 0 0 3px #FFF;
+}
+#navbar select{
+	width: 176px;
+	padding: 4px;
+	margin-right: 19px;
+}
+
+.bounce {
+  animation: bounce 1s .5s;
+  transform: scale(0.85);
+}
+
+@keyframes bounce {
+  0% { transform: scale(1.1); opacity: 1 }
+  50% { transform: scale(1.6); opacity: .7; }
+  60% { transform: scale(0.6); opacity: 1 }
+  80% { transform: scale(0.95) }
+  100% { transform: scale(0.85) }
+}
+
+#openings{
+	position: fixed;
+	bottom: 0px;
+	right: 0px;
+	background-color: rgba(255,255,255, 0.5);
+	padding: 1em;
+	width: 300px;
+	top: 0;
+	overflow-y: scroll;
+}
+#openings:hover{
+	background-color: rgba(255,255,255, 0.8);
+}
+
+
+#openings div{
+	margin: 1em 0;
+}
+#play{
+	display: inline-block;
+	float: left;
+	margin-right: 8px;
+}
+
+#play i{
+	height: 34px;
+	width: 34px;
+	display: block;
+	background-size: 100%;
+	background-image: url(../img/play-icon.png);
+}
+#play.active i{
+	background-image: url(../img/pause-icon.png);
+}
+
+table {
+    border-collapse: collapse;
+    width: 100%;
+}
+
+table, th, td {
+    border: 1px dotted #aaa;
+	font-weight: bold;
+	padding: .3em;
+	font-size: .95em;
+
+}
+table tr th{
+	text-align: center;
+	text-transform: uppercase;
+	font-weight: 200;
+	background: #333;
+	color: #efefef;
+	font-size: .9em;
+}
+table tr th:first-child{
+	width: 83px;
+}
+table th td:first-child,
+table tr td:first-child{
+	text-align: center;
+}
+table tbody tr:hover{
+	background-color: white;
+	color: black !important;
+	cursor: pointer;
+}
+#bookmarks{
+	bottom: 25px;
+	position: fixed;
+	background: rgba(255,255,255, 0.5);
+	padding: 13px;
+}
+.none{
+	display: none;
+}
+
+.spinner {
+  margin: 50px auto;
+  width: 40px;
+  height: 40px;
+  position: relative;
+  text-align: center;
+  
+  -webkit-animation: rotate 2.0s infinite linear;
+  animation: rotate 2.0s infinite linear;
+}
+#spinner-container{
+	background-color: #f1c40f;
+	position: fixed;
+	top: 0;
+	bottom: 0;
+	width: 100%;
+	z-index: 99999;
+	display: block;
+	/*height: 100%;*/
+}
+#spinner-container p{
+	color: white;
+	text-align: center;
+	font-size: 1.3em;
+	font-weight: 200;
+	text-transform: uppercase;
+	padding-top: 1em;
+}
+#spinner-container > div{
+	position: absolute;
+	height: 50%;
+	top: 0;
+	margin: auto;
+	bottom: 0;
+	left: 0;
+	right: 0;
+}
+
+.dot1, .dot2 {
+  width: 60%;
+  height: 60%;
+  display: inline-block;
+  position: absolute;
+  top: 0;
+  background-color: white;
+  border-radius: 100%;
+  
+  -webkit-animation: bounce 2.0s infinite ease-in-out;
+  animation: bounce 2.0s infinite ease-in-out;
+}
+
+.dot2 {
+  top: auto;
+  bottom: 0px;
+  -webkit-animation-delay: -1.0s;
+  animation-delay: -1.0s;
+}
+
+@-webkit-keyframes rotate { 100% { -webkit-transform: rotate(360deg) }}
+@keyframes rotate { 100% { transform: rotate(360deg); -webkit-transform: rotate(360deg) }}
+
+@-webkit-keyframes bounce {
+  0%, 100% { -webkit-transform: scale(0.0) }
+  50% { -webkit-transform: scale(1.0) }
+}
+
+@keyframes bounce {
+  0%, 100% { 
+    transform: scale(0.0);
+    -webkit-transform: scale(0.0);
+  } 50% { 
+    transform: scale(1.0);
+    -webkit-transform: scale(1.0);
+  }
+}
+
+
+
+#bookmarks .quarter .btn:active,
+#bookmarks .quarter .btn:focus{
+
+	color: #fff;
+	background-color: #428bca;
+	border-color: #357ebd;
+
+}
+
+#bookmarks .btn.active{
+	color: #fff !important;
+	background-color: #3276b1 !important;
+	border-color: #285e8e !important;
+}
+
+.switch{
+	width: 35px;
+	height: 22px;
+	background-image: url("../img/switch.png");
+	float: right;
+	background-size: 100%;
+	cursor: pointer;
+}
+.switch.on{
+	background-position: 0 -21px;
+}
+
+label[for="trademark"],
+label[for="category"]{
+	display: inline-block;
+	width: 65px;
+}
+
+@media only screen and (max-width: 930px) {
+	#openings{
+		bottom: 190px;
+		top: 20px;
+		right: 20px;
+		box-shadow: 0 0 6px #bbb;
+	}
+}
+@media only screen and (max-width: 690px) {
+	.restart{
+		position: absolute !important;
+		left: 361px;
+		top: 11px;
+	}
+}

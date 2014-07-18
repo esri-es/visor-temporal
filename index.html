@@ -1,0 +1,721 @@
+                    
+
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Histórico de apertura de comercios en España</title>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <meta name="viewport" content="initial-scale=1, maximum-scale=1,user-scalable=no">
+  
+  <link rel="stylesheet" href="http://js.arcgis.com/3.9/js/esri/css/esri.css">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/animate.css">
+  <link rel="stylesheet" href="css/chardinjs.css">
+  <link href='http://fonts.googleapis.com/css?family=Open+Sans:400,300' rel='stylesheet' type='text/css'>
+  <link rel="stylesheet" href="//netdna.bootstrapcdn.com/bootstrap/3.0.3/css/bootstrap.min.css">
+  <link rel="stylesheet" href="//netdna.bootstrapcdn.com/font-awesome/4.0.3/css/font-awesome.css">
+  <script src="js/dojoConfig.js"></script>
+  <script src="js/utils.js"></script>
+  
+  <script src="http://js.arcgis.com/3.9/"></script>
+  <script>
+    var map;
+    require([
+      "esri/map",
+      "esri/layers/FeatureLayer",  
+      "esri/urlUtils",
+      "esri/tasks/query",
+      "esri/layers/GraphicsLayer",
+      "esri/geometry/Point",
+      "esri/graphic",
+      "esri/symbols/SimpleMarkerSymbol",
+      "esri/SpatialReference",
+      "esri/dijit/PopupTemplate",
+      "esri/tasks/QueryTask",
+      "jquery",
+      "esri/config",
+      "dojo/domReady!",
+    ], function(
+      Map, 
+      FeatureLayer,
+      urlUtils,
+      Query,
+      GraphicsLayer,
+      Point,
+      Graphic,
+      SimpleMarkerSymbol,
+      SpatialReference,
+      PopupTemplate,
+      QueryTask,
+      $,
+      esriConfig
+    ) {
+
+      /***************************************************
+        Añadimos un par de plugins de jQuery asíncronamente
+      ***************************************************/
+
+      (function () {
+        var s = document.createElement('script');
+        s.type = 'text/javascript';
+        s.async = true;
+        s.src = 'js/chardinjs.min.js';
+        var x = document.getElementsByTagName('script')[0];
+        x.parentNode.insertBefore(s, x);
+      })();
+
+      (function () {
+        var s = document.createElement('script');
+        s.type = 'text/javascript';
+        s.async = true;
+        s.src = 'js/moment.min.js';
+        var x = document.getElementsByTagName('script')[0];
+        x.parentNode.insertBefore(s, x);
+      })();
+
+     
+      // Configuramos el proxy ya que los datos están
+      // protegidos
+      esriConfig.defaults.io.corsEnabledServers.push("rauljimenez.info");
+
+      var popupTemplate = PopupTemplate({
+        "title": "",
+        "fieldInfos": [{
+          "fieldName": "Enseña",
+          "label": "Enseña",
+          visible: true
+        },{
+          "fieldName": "Categoría",
+          "label": "Categoría",
+          visible: true
+        },{
+          "fieldName": "Tipo",
+          "label": "Tipo",
+          visible: true
+        },{
+          "fieldName": "Fecha_Apertura",
+          "label": "Fecha de apertura",
+          visible: true
+        }, {
+          "fieldName": "Grupo",
+          "label": "Grupo",
+          visible: true
+        },{
+          "fieldName": "zona_comercial",
+          "label": "Zona comercial",
+          visible: true
+        },{
+          "fieldName": "domicilio",
+          "label": "Domicilio",
+          visible: true
+        }]
+      });
+
+      
+      window.APP = {
+        'timer': 0,
+        'numLocales': 0,
+        'colors': {},
+        'aperturas': {},
+        'counter': 0
+      };
+
+      var continuePlay = true,
+          elem, 
+          queryTask, 
+          query;
+
+      map = new Map("mapDiv", {
+        basemap: "gray",
+        center: [-3.7, 40.382],
+        zoom: 6,
+      });
+      
+      window.timelinePtos = new GraphicsLayer({
+            infoTemplate: popupTemplate
+          });
+      map.addLayer(timelinePtos);
+      
+      window.quarters = [];
+      for(var i = 0; i < 6; i++){
+        quarters[i] = new GraphicsLayer({
+          infoTemplate: popupTemplate
+        });
+        map.addLayer(quarters[i]);
+      }
+
+      window.selectedOpening = new GraphicsLayer({
+        infoTemplate: popupTemplate
+      });
+      map.addLayer(selectedOpening);
+      
+
+      urlUtils.addProxyRule({
+        urlPrefix: "services2.arcgis.com",
+        proxyUrl: "http://rauljimenez.info/dev/alimarket/proxy.php"
+      });
+      
+      function getRandomColor() {
+        var rColor = [];
+        rColor[0] = Math.floor(Math.random() * 200);
+        rColor[1] = Math.floor(Math.random() * 200);
+        rColor[2] = Math.floor(Math.random() * 200);
+        
+        return rColor;
+      }
+
+      
+
+      
+      /********************************************
+        Obtener el día del año
+      ********************************************/
+      function getCreateIndex(elem){
+        var f = elem.attributes["Fecha_Apertura"].split("-"),
+            aux = 0;
+        
+        aux = moment(f[1] +"-"+ f[2] +"-"+ f[0], "MM DD YYYY").format("DDDD");
+        aux = parseInt(aux);
+        if(parseInt(f[0])===2014){
+          aux += 365;
+        }
+        return aux;
+      }
+
+      /********************************************
+         Cargamos en APP.aperturasFiltradas las 
+         perturas que encajen con los criterios
+         y las agrupamos en un array donde cada índice
+         representa un día
+      ********************************************/
+      window.updateSelection = function(){
+        var numElems = APP.arrayAperturas.length,
+            subArray = [],
+            catVal, typeVal, valid
+            arrayPuntos = [],
+            category = $("#category").val(), 
+            type = $("#type").val();
+            trademark = $("#trademark").val();
+        
+        // Extraemos los locales que encajan con la selección  
+        for(i = 0; i < numElems; i++){
+          catVal = APP.arrayAperturas[i].attributes["Categoría"];
+          typeVal = APP.arrayAperturas[i].attributes["Tipo"];
+          trademarkVal = APP.arrayAperturas[i].attributes["Enseña"];
+          if(catVal === category || category === "*"){
+            if(typeVal === type || type === "*"){
+              if(trademarkVal === trademark || trademark === "*"){
+                subArray.push(APP.arrayAperturas[i]);  
+              }
+            }
+          }
+        }
+
+        // Los agrupamos por días
+        APP.aperturasFiltradasLength = subArray.length;
+        if (subArray.length > 0) {
+          var numPtos = subArray.length;
+          for(i = 0 ; i < numPtos ; i++){
+            fechaApertura = subArray[i].attributes["Fecha_Apertura"].split("-");
+            
+            j = getCreateIndex(subArray[i]);
+
+            if(! arrayPuntos[j]){
+              arrayPuntos[j] = [];
+            }
+            arrayPuntos[j].push(subArray[i]);
+          }
+        }
+        APP.aperturasFiltradas = arrayPuntos;
+      }
+
+
+
+
+      /********************************************
+         Reiniciamos la interfaz y las variables
+      ********************************************/
+      var resetMap = function(){
+          APP.timer = 0;
+          APP.numLocales = 0;
+          continuePlay = false;
+          $("#openings tbody").empty();
+          timelinePtos.clear();
+          updateSelection();
+          for(var i = 0; i < 6; i++){
+            quarters[i].clear();
+          }
+
+          $("#play").removeClass("active");
+          $("#timer").html("Aperturas: 0");
+          $(".btn.active").removeClass("active");          
+      };
+
+
+
+      
+      /********************************************
+         Función que pinta todos los puntos se encuentren
+         dentro del array de día
+      ********************************************/
+      var printDay = function(day, layer){
+        var domEl, symbol, pto, elem;
+
+        for(i=0; i< APP.aperturasFiltradas[day].length; i++){
+          elem = APP.aperturasFiltradas[day][i];
+
+          if(!APP.colors[elem.attributes["Enseña"]]){
+            APP.colors[elem.attributes["Enseña"]] = getRandomColor();
+          }
+          
+          symbol = new SimpleMarkerSymbol({
+            "color": APP.colors[elem.attributes["Enseña"]],
+            "size": 6,
+            "angle": -30,
+            "xoffset": 0,
+            "yoffset": 0,
+            "type": "esriSMS",
+            "style": "esriSMSCircle",
+            "outline": {
+              "color": [0,0,0,255],
+              "width": 1,
+              "type": "esriSLS",
+              "style": "esriSLSSolid"
+            }
+          });
+
+          pto = new Graphic(elem.geometry, symbol,{
+            "Enseña": elem.attributes["Enseña"],
+            "Grupo": elem.attributes["Grupo"],
+            "Categoría": elem.attributes["Categoría"],
+            "Tipo": elem.attributes["Tipo"],
+            "Fecha_Apertura": elem.attributes["Fecha_Apertura"],
+            "zona_comercial": elem.attributes["zona_comercial"],
+            "domicilio": elem.attributes["domicilio"],
+          });
+
+          layer.add(pto);
+          if(layer.graphics.length > 0){
+            if(layer.graphics[layer.graphics.length - 1].getShape()){
+              counter++;
+              dotElem = layer.graphics[layer.graphics.length - 1].getShape().rawNode;
+              $(dotElem).attr("dance", true);
+            }
+          }
+
+          
+          //Añadimos el elemento a la tabla y su comportamiento
+          domEl = $("#openings tbody").prepend(function(){
+            var node,
+                attr = elem.attributes,
+                color = APP.colors[attr["Enseña"]],
+                htmlCode =  "<tr style='color:rgb(" + color + ")' data-day='" + day + "'>"+
+                              "<td>" + attr["Fecha_Apertura"] + "</td>"+
+                              "<td>" + attr["Enseña"] + "</td>"+
+                            "</tr>";
+                
+                node = $(htmlCode);
+                node.data("geometry", pto);
+                node.click(function(){
+
+                  var pto = $(this).data("geometry");
+                  map.centerAt(pto.geometry);
+                  
+                  map.on("extent-change",function(){
+           
+                    selectedOpening.clear();
+                    selectedOpening.add(pto);
+                    var shape = selectedOpening.graphics[selectedOpening.graphics.length - 1].getShape();
+                    if(shape){
+                      domElem = shape.rawNode;
+                      $(domElem).removeAttr("dance");
+                      $(domElem).attr("jump", true);  
+                    }
+                    timelinePtos.refresh();
+                  });
+                  
+                  
+                  
+                });
+
+            return node;
+          });
+          APP.numLocales = $("#openings tr").length - 1;
+        } 
+      }
+
+
+
+
+      /********************************************
+        Actualizamos el número de aperturas
+      ********************************************/
+      var updateOpenings = function(day){
+        var hidden = "";
+        if($(".btn.active").length > 0){
+          hidden = "style='display: none'";
+        }
+        $("#timer").html("Aperturas: " + APP.numLocales + " de " + APP.aperturasFiltradasLength);
+      }
+      
+
+
+
+      /********************************************
+        Función recursiva que se llama cada segundo
+        y punta puntos en caso de que existan
+      ********************************************/
+      var animate = function(day){
+        APP.timer = day;
+        if(APP.aperturasFiltradas[day]){
+            printDay(day, timelinePtos); 
+        }
+        updateOpenings(day);      
+        
+        if(day < arrayPuntos.length && continuePlay){
+
+          while(!APP.aperturasFiltradas[day+1] && day <= APP.aperturasFiltradas.length){
+            day++;
+          }
+          setTimeout(function(){
+            if(continuePlay){
+              animate(day+1)
+            }
+          },1000);
+        }
+      };
+ 
+
+
+
+      /********************************************
+        1) Consultamos todas las aperturas al servicio
+        2) Cargamos y ordenamos los selectbox
+        3) Inicializamos la interfaz
+      ********************************************/
+      queryTask = new esri.tasks.QueryTask("http://services2.arcgis.com/mX1pACnD8SJSp3YP/arcgis/rest/services/Aperturas_Restauracion_0407/FeatureServer/0");
+      query = new esri.tasks.Query();
+      query.where = "1 = 1";
+      query.returnGeometry = true;
+      query.outFields = ["*"];
+      query.orderByFields = ["Fecha_Apertura"];
+      
+      queryTask.execute(query, function(data){
+        
+        APP.arrayAperturas = data.features;
+        var i, j, elem, safe, numPtos = APP.arrayAperturas.length;
+        
+        selectbox = [{
+          name: "Tipo",
+          domEl: "#type"
+        },{
+          name: "Categoría",
+          domEl: "#category"
+        },{
+          name: "Enseña",
+          domEl: "#trademark"
+        }];
+
+        tmp = {};
+        for(i = 0 ; i < numPtos ; i++){
+          elem = APP.arrayAperturas[i];
+          for(j = 0; j < selectbox.length ; j++){  
+            domEl = selectbox[j].domEl;
+            optionName = selectbox[j].name;
+            optionVal = elem.attributes[optionName]
+            optionSafe = optionVal.replace("'","");
+            if($(domEl).find("option[value='"+optionSafe+"']").length == 0){
+              $(domEl).append("<option value='"+optionSafe+"'>"+optionVal+"</option>");  
+            }
+          }
+        }
+        for(j = 0; j < selectbox.length ; j++){
+          domEl = selectbox[j].domEl;
+          sortSelect($(domEl).get()[0])
+        }
+
+        // Agrupamos la selección
+        updateSelection();
+
+        resetMap();
+        $(".none").fadeIn();
+        $("#spinner-container").fadeOut();
+        
+        $($(".quarter > button")[0]).click();
+
+        
+        // Activamos las instrucciones si el tamaño de la ventaja
+        // es lo suficientemente grande
+        var elemWindow = $(window);
+        if(elemWindow.width() >= 900 && elemWindow.height() >= 510){
+          $('body').chardinJs('start');
+        }
+      });
+
+
+
+
+
+      /********************************************
+        Función que actualiza los selectbox en caso
+        de que haya algún cambio.
+      ********************************************/
+      $("form select").change(function(){
+        var elem, elemLabel, elemLabelOpos, elemVal, nodeVal, openings,
+            i=0;
+            selectbox = $(this).attr("id");
+        resetMap();
+        
+
+        if(selectbox == "trademark"){
+          openings = APP.arrayAperturas;
+          numElems = APP.arrayAperturas.length;
+          
+          while(i < numElems && openings[i].attributes["Enseña"].replace("'","") != $(this).val()){
+            i++;
+          }
+          
+          elem = openings[i].attributes;
+          $('#type').find('option[value="'+elem['Tipo']+'"]').attr('selected', true);
+          $('#category').find('option[value="'+elem['Categoría']+'"]').attr('selected', true);
+          
+          
+        }else{
+          // Actualizamos el otro select box
+          if(selectbox == "category"){
+            elem = "#type";
+            elemLabel = "Tipo";
+            elemLabelOpos = "Categoría";
+          }else if(selectbox == "type"){
+            elem = "#category";
+            elemLabel = "Categoría";
+            elemLabelOpos = "Tipo";
+          }
+
+          $('#trademark>option:eq(0)').attr('selected', true);
+          
+          $(elem).empty();
+          $(elem).append('<option value="*">Todos</option>');
+          
+          elemVal = $(this).val();
+          for(e = 0; e < APP.arrayAperturas.length ; e++){
+            nodeVal = APP.arrayAperturas[e];
+            if(nodeVal.attributes[elemLabelOpos] == elemVal || elemVal == "*"){
+              newVal = nodeVal.attributes[elemLabel];
+              if($(elem).find("option[value='"+newVal+"']").length == 0){
+                $(elem).append("<option value='"+newVal+"'>"+newVal+"</option>");  
+              }  
+            }
+            
+          }
+        }
+      });
+
+
+
+
+      /********************************************
+        Filtro por quarter
+      ********************************************/
+      $("#bookmarks .quarter button").click(function(){
+        
+        var cursor, openings, activeQs
+            $this = $(this),
+            end = $this.data("day"),
+            quarter = parseInt($this.data("quarter")),
+            isActive = $this.hasClass("active");
+
+        if(continuePlay){
+          alert("No es posible activar un cuatrimestre mientras se está ejecutando una simulación");
+          return 0;
+        }
+
+        $this.toggleClass("active");
+
+        cursor = quarter > 0 ? $("button[data-quarter='" + (quarter - 1) + "']").data("day") : 0;
+        if(isActive){
+          
+          // Clear Graphics and Table
+          quarters[quarter].clear();
+          openings = $("#openings tr").filter(function() {
+            var dataDay = $(this).attr("data-day");
+            return dataDay >= cursor && dataDay < end;
+          });
+
+          APP.numLocales -= openings.length;
+          updateOpenings(APP.timer);
+
+          openings.remove();
+
+        }else{
+          
+          for(cursor ; cursor < end ; cursor++){
+          
+            if(typeof(APP.aperturasFiltradas[cursor]) !== "undefined"){
+              printDay(cursor, quarters[quarter]);
+            }
+            updateOpenings(cursor);
+          }
+          sortTable();
+        }
+
+        activeQs = $(".btn.active");
+        if(activeQs.length > 0){
+          APP.timer = $(activeQs[activeQs.length - 1]).data("day");
+        }else{
+          APP.timer = 0;
+        }
+      });
+      
+
+
+
+
+      /********************************************
+        Comportamiento del botón PLAY
+      ********************************************/
+      $("#play").click(function(){
+        var aux = $(".quarter > button.active")
+        if(aux.length > 1){
+          
+          diff = $(aux[aux.length-1]).data("quarter");
+          //debugger;
+          for(var i = aux.length -2 ; i >= 0 ; i--){
+            diff = diff - $(aux[i]).data("quarter");
+          }
+          if(diff > 1){
+            resetMap();
+          }
+        }
+        if($(this).find("i").hasClass("flash")){
+          $(this).find("i").removeClass("flash");
+        }
+        if($(this).data("active")){
+          $(this).data("active", false);
+          continuePlay = false;
+          $(this).removeClass("active");
+        }
+        else{
+          $(this).data("active", true);
+          continuePlay = true;
+          $(this).addClass("active");
+          animate(APP.timer);
+        }
+      });
+
+
+      $("#bookmarks .restart").click(function(){
+        resetMap();
+      });
+
+
+
+
+
+      /********************************************
+        Funcionalidad del botón ocultar
+      ********************************************/
+      $(".switch").click(function(){ 
+        var $this = $(this);
+        $this.toggleClass("on");
+        if($this.data("elem") == "#openings"){
+          
+          $("#openings table").toggle();
+          if($this.hasClass("on")){
+            $("#openings").css("height", "auto");
+            $("#openings").css("width", "300px");
+            $("#openings").css("overflow-y", "scroll");
+            $("#timer").show();
+          }else{
+            $("#openings").css("height", "80px");
+            $("#openings").css("width", "auto");
+            $("#openings").css("overflow-y", "hidden");
+            $("#timer").hide();
+          }
+        }else{
+          if($this.hasClass("on")){
+            $(".elem").show();
+          }else{
+            $(".elem").hide();
+          }
+        }
+      });
+    });
+  </script>
+
+<body class="claro">
+  <div id="spinner-container">
+    <div>
+      <div class="spinner">
+        <div class="dot1"></div>
+        <div class="dot2"></div>
+      </div>
+      <p>Cargando</p>
+    </div>
+  </div>
+  <div id="mapDiv"></div>
+  
+  <div id="openings"  class="none" data-intro="- Esta es una tabla animada con las nuevas aperturas. <br><br> - Haz clic en el nombre de para identificar la enseña. <br><br> - También puedes pinchar sobre un punto para obtener + info." data-position="left">
+    <div class="switch on" data-elem="#openings"></div>
+    <div id="timer"></div>
+    <table>
+      <thead>
+        <tr>
+           <th>Fecha</th>
+           <th>Enseña</th>
+        </tr>
+      </thead>
+    <tbody>
+        
+    </tbody>
+    </table>
+  </div>
+
+  
+
+
+  <div id="bookmarks" class="none" data-intro="Utiliza estos controles para filtrar y animar el cronograma." data-position="top">
+    
+    <div class="switch on" data-elem="#bookmarks" data-intro="Los botones verdes permiten ocultar los paneles." data-position="right"></div>
+
+    <div id="navbar" class="none elem">
+      <form class="none">
+        <p>
+          <label for="trademark">Enseña</label>
+          <select id="trademark">
+            <option value="*">Todas</option>
+          </select>
+        </p>
+        
+        <label for="category">Categoría</label>
+        <select id="category">
+          <option value="*">Todas</option>
+        </select>
+        
+        <label for="type">Tipo</label>
+        <select id="type">
+          <option value="*">Todos</option>
+        </select>      
+      </form>    
+    </div>
+
+    <div id="play" class="none elem">
+      <i class="flash animated-slow infinite"></i>
+    </div>
+
+    <div class="btn-group quarter elem">
+      <!-- ngRepeat: year in state.years -->
+      <button type="button" class="btn btn-primary" btn-radio="year" data-day="91" data-quarter="0">Q1 2013</button>
+      <button type="button" class="btn btn-primary" btn-radio="year" data-day="182" data-quarter="1">Q2 2013</button>
+      <button type="button" class="btn btn-primary" btn-radio="year" data-day="274" data-quarter="2">Q3 2013</button>
+      <button type="button" class="btn btn-primary" btn-radio="year" data-day="366" data-quarter="3">Q4 2013</button>
+      <button type="button" class="btn btn-primary" btn-radio="year" data-day="456" data-quarter="4">Q1 2014</button>
+      <button type="button" class="btn btn-primary" btn-radio="year" data-day="547" data-quarter="5">Q2 2014</button>
+    </div>
+    <div class="btn-group restart elem">
+      <!-- ngRepeat: year in state.years -->
+      <button type="button" class="btn btn-warning">Reiniciar</button>
+    </div>
+  </div>
+</body>
+</html>
